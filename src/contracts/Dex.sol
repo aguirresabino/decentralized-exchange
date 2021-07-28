@@ -11,14 +11,14 @@ contract Dex {
     bytes32 constant DAI = bytes32("DAI");
     bytes32[] public tokenList;
     address public admin;
-    uint256 public nextOrderId;
-    uint256 public nextTradeId;
+    uint public nextOrderId;
+    uint public nextTradeId;
 
    enum Side {
         BUY,
         SELL
     }
-    
+
     struct Token {
         bytes32 ticker;
         address tokenAddress;
@@ -28,33 +28,33 @@ contract Dex {
     //  - Buy <= LIMIT
     // - Sell >= LIMIT
     struct Order {
-        uint256 id;
+        uint id;
         address trader;
         Side side;
         bytes32 ticker; // eh a identificacao do token, por exemplo: DAI, BTC, ETH
-        uint256 amount;
-        uint256 filled;
-        uint256 price;
-        uint256 date;
+        uint amount;
+        uint filled;
+        uint price;
+        uint date;
     }
 
     mapping(bytes32 => Token) public tokens;
-    mapping(address => mapping(bytes32 => uint256)) public traderBalances;
+    mapping(address => mapping(bytes32 => uint)) public traderBalances;
     // o uint será o Side. No Solidity podemos converter o enum para inteiro desta forma:
     // uint(Side.SELL)
     // uint(Side.BUY)
-    mapping(bytes32 => mapping(uint256 => Order[])) public orderBook;
+    mapping(bytes32 => mapping(uint => Order[])) public orderBook;
 
     // indexed: like PostgresSQL or MongoDB index?
     event NewTrade(
-        uint256 tradeId,
-        uint256 orderId,
+        uint tradeId,
+        uint orderId,
         bytes32 indexed ticker,
         address indexed trader1,
         address indexed trader2,
-        uint256 amount,
-        uint256 price,
-        uint256 date
+        uint amount,
+        uint price,
+        uint date
     );
 
     constructor() {
@@ -65,12 +65,12 @@ contract Dex {
         bytes32 ticker, 
         Side side
     ) external view returns (Order[] memory) {
-        return orderBook[ticker][uint256(side)];
+       return orderBook[ticker][uint(side)];
     }
 
     function getTokens() external view returns (Token[] memory) {
         Token[] memory _tokens = new Token[](tokenList.length);
-        for (uint256 i = 0; i < tokenList.length; i++) {
+        for (uint i = 0; i < tokenList.length; i++) {
             _tokens[i] = Token(
                 tokens[tokenList[i]].ticker,
                 tokens[tokenList[i]].tokenAddress
@@ -88,7 +88,7 @@ contract Dex {
     }
 
     function deposit(
-        uint256 amount, 
+        uint amount, 
         bytes32 ticker
     ) external tokenExist(ticker) {
         // address(this): address contract instance
@@ -98,11 +98,11 @@ contract Dex {
             address(this),
             amount
         );
-        traderBalances[msg.sender][ticker] += amount;
+        traderBalances[msg.sender][ticker] = traderBalances[msg.sender][ticker].add(amount);
     }
 
     function withdraw(
-        uint256 amount, 
+        uint amount, 
         bytes32 ticker
     ) external tokenExist(ticker) {
         // ticker representa a moeda, tipo DAI, ETH, BTC
@@ -112,14 +112,14 @@ contract Dex {
             traderBalances[msg.sender][ticker] >= amount,
             "balance too low"
         );
-        traderBalances[msg.sender][ticker] -= amount;
+        traderBalances[msg.sender][ticker] = traderBalances[msg.sender][ticker].sub(amount);
         IERC20(tokens[ticker].tokenAddress).transfer(msg.sender, amount);
     }
 
     function createLimitOrder(
         bytes32 ticker,
-        uint256 amount,
-        uint256 price,
+        uint amount,
+        uint price,
         Side side
     ) external tokenExist(ticker) tokenIsNotDai(ticker) {
         if (side == Side.SELL) {
@@ -133,11 +133,11 @@ contract Dex {
             // em caso de compra, é verificado se o contrato (address(this)) possui o montante
             // que o usuário deseja comprar
             require(
-                traderBalances[msg.sender][DAI] >= amount * price,
+                traderBalances[msg.sender][DAI] >= amount.mul(price),
                 "DAI balance too low"
             );
         }
-        Order[] storage orders = orderBook[ticker][uint256(side)];
+        Order[] storage orders = orderBook[ticker][uint(side)];
         orders.push(
             Order(
                 nextOrderId,
@@ -151,7 +151,7 @@ contract Dex {
             )
         );
         //TODO: Refactor this method! Use best practices!
-        uint256 i = orders.length - 1;
+        uint i = orders.length > 0 ? orders.length - 1 : 0;
         while (i > 0) {
             if (side == Side.BUY && orders[i - 1].price > orders[i].price) {
                 break;
@@ -169,7 +169,7 @@ contract Dex {
 
     function createMarketOrder(
         bytes32 ticker,
-        uint256 amount,
+        uint amount,
         Side side
     ) external tokenExist(ticker) tokenIsNotDai(ticker) {
         if (side == Side.SELL) {
@@ -180,15 +180,15 @@ contract Dex {
         }
 
         Order[] storage orders = orderBook[ticker][
-            uint256(side == Side.BUY ? Side.SELL : Side.BUY)
+            uint(side == Side.BUY ? Side.SELL : Side.BUY)
         ];
-        uint256 i;
-        uint256 remaining = amount;
+        uint i;
+        uint remaining = amount;
         while (i < orders.length && remaining > 0) {
-            uint256 available = orders[i].amount - orders[i].filled;
-            uint256 matched = (remaining > available) ? available : remaining;
-            remaining -= matched;
-            orders[i].filled += matched;
+            uint available = orders[i].amount.sub(orders[i].filled);
+            uint matched = (remaining > available) ? available : remaining;
+            remaining = remaining.sub(matched);
+             orders[i].filled = orders[i].filled.add(matched);
             emit NewTrade(
                 nextTradeId,
                 orders[i].id,
@@ -200,20 +200,20 @@ contract Dex {
                 block.timestamp
             );
             if (side == Side.SELL) {
-                traderBalances[msg.sender][ticker] -= matched;
-                traderBalances[msg.sender][DAI] += matched * orders[i].price;
-                traderBalances[orders[i].trader][ticker] += matched;
-                traderBalances[orders[i].trader][DAI] -=
-                    matched *
-                    orders[i].price;
+                traderBalances[msg.sender][ticker] = traderBalances[msg.sender][ticker].sub(matched);
+                traderBalances[msg.sender][DAI] = traderBalances[msg.sender][DAI].add(matched.mul(orders[i].price));
+                traderBalances[orders[i].trader][ticker] = traderBalances[orders[i].trader][ticker].add(matched);
+                traderBalances[orders[i].trader][DAI] = traderBalances[orders[i].trader][DAI].sub(matched.mul(orders[i].price));
             }
             if (side == Side.BUY) {
-                traderBalances[msg.sender][ticker] += matched;
-                traderBalances[msg.sender][DAI] -= matched * orders[i].price;
-                traderBalances[orders[i].trader][ticker] -= matched;
-                traderBalances[orders[i].trader][DAI] +=
-                    matched *
-                    orders[i].price;
+                require(
+                    traderBalances[msg.sender][DAI] >= matched.mul(orders[i].price),
+                    'dai balance too low'
+                );
+                traderBalances[msg.sender][ticker] = traderBalances[msg.sender][ticker].add(matched);
+                traderBalances[msg.sender][DAI] = traderBalances[msg.sender][DAI].sub(matched.mul(orders[i].price));
+                traderBalances[orders[i].trader][ticker] = traderBalances[orders[i].trader][ticker].sub(matched);
+                traderBalances[orders[i].trader][DAI] = traderBalances[orders[i].trader][DAI].add(matched.mul(orders[i].price));
             }
             nextTradeId++;
             i++;
@@ -221,7 +221,7 @@ contract Dex {
 
         i = 0;
         while (i < orders.length && orders[i].filled == orders[i].amount) {
-            for (uint256 j = i; j < orders.length - 1; j++) {
+            for (uint j = i; j < orders.length - 1; j++) {
                 orders[j] = orders[j + 1];
             }
             orders.pop();
