@@ -10,11 +10,10 @@
     "truffle:console": "truffle console",
     "truffle:migrate": "truffle migrate",
     "truffle:migrate:reset": "truffle migrate --reset",
-    "truffle:test": "truffle test",
-    "client:start": "react-scripts start",
-    "client:build": "react-scripts build"
+    "truffle:test": "truffle test"
   },
   "devDependencies": {
+    "@openzeppelin/test-helpers": "^0.5.12",
     "chai": "^4.3.4",
     "truffle": "^5.4.2"
   },
