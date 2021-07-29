@@ -91,7 +91,7 @@ contract Dex {
         uint amount, 
         bytes32 ticker
     ) external tokenExist(ticker) {
-        // address(this): address contract instance
+        // address(this): address of the Dex instance
         // o amount está sendo enviado para o contrato, dessa forma o contrato pode fazer empréstimos e etc
         IERC20(tokens[ticker].tokenAddress).transferFrom(
             msg.sender,
@@ -151,12 +151,12 @@ contract Dex {
             )
         );
         //TODO: Refactor this method! Use best practices!
-        uint i = orders.length > 0 ? orders.length - 1 : 0;
+        uint i = orders.length - 1;
         while (i > 0) {
             if (side == Side.BUY && orders[i - 1].price > orders[i].price) {
                 break;
             }
-            if (side == Side.SELL && orders[i - 1].price > orders[i].price) {
+            if (side == Side.SELL && orders[i - 1].price < orders[i].price) {
                 break;
             }
             Order memory order = orders[i - 1];
@@ -179,6 +179,8 @@ contract Dex {
             );
         }
 
+        // if market order is SELL, then get BUY limit orders
+        // if market order is BUY, then get SELL limit orders
         Order[] storage orders = orderBook[ticker][
             uint(side == Side.BUY ? Side.SELL : Side.BUY)
         ];
