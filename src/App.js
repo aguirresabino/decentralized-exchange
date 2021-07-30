@@ -3,6 +3,7 @@ import { Footer } from './Footer.js';
 import { Header } from './Header.js';
 import { Wallet } from './Wallet.js';
 import { NewOrder } from './NewOrder.js';
+import { AllOrders } from './AllOrders.js';
 
 const SIDE = {
   BUY: 0,
@@ -122,6 +123,23 @@ const App = ({ web3, accounts, contracts }) => {
     init();
   }, []);
 
+  useEffect(() => {
+    const init = async () => {
+      const [balances, orders] = await Promise.all([
+        getBalances(
+          user.accounts[0],
+          user.selectedToken
+        ),
+        getOrders(user.selectedToken),
+      ]);
+      setUser(user => ({ ...user, balances }));
+      setOrders(orders);
+    }
+    if (user.selectedToken) {
+      init();
+    }
+  }, [user.selectedToken]);
+
   if (!user.selectedToken) {
     return <div>Loading...</div>
   }
@@ -149,6 +167,13 @@ const App = ({ web3, accounts, contracts }) => {
               />
             ) : null}
           </div>
+          {user.selectedToken.ticker !== 'DAI' ? (
+            <div className="col-sm-8">
+              <AllOrders
+                orders={orders}
+              />
+            </div>
+          ) : null}
         </div>
       </main>
       <Footer />
