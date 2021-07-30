@@ -19,7 +19,7 @@ const LoadingContainer = () => {
         init();
     }, []);
 
-    if(web3 && contracts && accounts.length) {
+    if(!web3 || !contracts || !accounts.length) {
         return <div>Loading...</div>;
     }
 
