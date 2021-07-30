@@ -33,7 +33,7 @@ const getContracts = async (web3) => {
     const tokenContracts = tokens.reduce((acc, token) => ({
         ...acc,
         [web3.utils.hexToUtf8(token.ticker)]: new web3.eth.Contract(
-            ERC20,
+            ERC20.abi,
             token.tokenAddress
         )
     }), {});
