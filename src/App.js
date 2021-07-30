@@ -2,6 +2,12 @@ import { useState, useEffect } from 'react';
 import { Footer } from './Footer.js';
 import { Header } from './Header.js';
 import { Wallet } from './Wallet.js';
+import { NewOrder } from './NewOrder.js';
+
+const SIDE = {
+  BUY: 0,
+  SELL: 1
+};
 
 const App = ({ web3, accounts, contracts }) => {
   const [tokens, setTokens] = useState([]);
@@ -12,6 +18,10 @@ const App = ({ web3, accounts, contracts }) => {
       tokenWallet: 0,
     },
     selectedToken: undefined
+  });
+  const [orders, setOrders] = useState({
+    buy: [],
+    sell: []
   });
 
   const selectToken = (token) => {
@@ -57,6 +67,43 @@ const App = ({ web3, accounts, contracts }) => {
     return { tokenDex, tokenWallet };
   }
 
+  const createMarketOrder = async (amount, side) => {
+    await contracts.dex.methods
+      .createMarketOrder(
+        web3.utils.fromAscii(user.selectedToken.ticker),
+        amount,
+        side
+      )
+      .send({ from: user.accounts[0] });
+    const orders = await getOrders(user.selectedToken);
+    setOrders(orders);
+  }
+
+  const createLimitOrder = async (amount, price, side) => {
+    await contracts.dex.methods
+      .createLimitOrder(
+        web3.utils.fromAscii(user.selectedToken.ticker),
+        amount,
+        price,
+        side
+      )
+      .send({ from: user.accounts[0] });
+    const orders = await getOrders(user.selectedToken);
+    setOrders(orders);
+  }
+
+  const getOrders = async (token) => {
+    const orders = await Promise.all([
+      contracts.dex.methods
+        .getOrders(web3.utils.fromAscii(token.ticker), SIDE.BUY)
+        .call(),
+      contracts.dex.methods
+        .getOrders(web3.utils.fromAscii(token.ticker), SIDE.SELL)
+        .call(),
+    ]);
+    return { buy: orders[0], sell: orders[1] };
+  }
+
   useEffect(() => {
     const init = async () => {
       const rawTokens = await contracts.dex.methods.getTokens().call();
@@ -64,9 +111,13 @@ const App = ({ web3, accounts, contracts }) => {
         ...token,
         ticker: web3.utils.hexToUtf8(token.ticker)
       }));
-      const balances = await getBalances(accounts[0], tokens[0]);
+      const [balances, orders] = await Promise.all([
+        getBalances(accounts[0], tokens[0]),
+        getOrders(tokens[0]),
+      ]);
       setTokens(tokens);
       setUser({ accounts, balances, selectedToken: tokens[0] });
+      setOrders(orders);
     }
     init();
   }, []);
@@ -91,6 +142,12 @@ const App = ({ web3, accounts, contracts }) => {
               deposit={deposit}
               withdraw={withdraw}
             />
+            {user.selectedToken.ticker !== 'DAI' ? (
+              <NewOrder
+                createMarketOrder={createMarketOrder}
+                createLimitOrder={createLimitOrder}
+              />
+            ) : null}
           </div>
         </div>
       </main>
