@@ -5,6 +5,7 @@ import { Wallet } from './Wallet.js';
 import { NewOrder } from './NewOrder.js';
 import { AllOrders } from './AllOrders.js';
 import { MyOrders } from './MyOrders.js';
+import { AllTrades } from './AllTrades.js';
 
 const SIDE = {
   BUY: 0,
@@ -25,6 +26,8 @@ const App = ({ web3, accounts, contracts }) => {
     buy: [],
     sell: []
   });
+  const [trades, setTrades] = useState([]);
+  const [listener, setListener] = useState(undefined);
 
   const selectToken = (token) => {
     setUser({ ...user, selectedToken: token });
@@ -72,7 +75,7 @@ const App = ({ web3, accounts, contracts }) => {
   const createMarketOrder = async (amount, side) => {
     await contracts.dex.methods
       .createMarketOrder(
-        web3.utils.fromAscii(user.selectedToken.ticker),
+        web3.utils.asciiToHex(user.selectedToken.ticker),
         amount,
         side
       )
@@ -84,7 +87,7 @@ const App = ({ web3, accounts, contracts }) => {
   const createLimitOrder = async (amount, price, side) => {
     await contracts.dex.methods
       .createLimitOrder(
-        web3.utils.fromAscii(user.selectedToken.ticker),
+        web3.utils.asciiToHex(user.selectedToken.ticker),
         amount,
         price,
         side
@@ -97,13 +100,29 @@ const App = ({ web3, accounts, contracts }) => {
   const getOrders = async (token) => {
     const orders = await Promise.all([
       contracts.dex.methods
-        .getOrders(web3.utils.fromAscii(token.ticker), SIDE.BUY)
+        .getOrders(web3.utils.asciiToHex(token.ticker), SIDE.BUY)
         .call(),
       contracts.dex.methods
-        .getOrders(web3.utils.fromAscii(token.ticker), SIDE.SELL)
+        .getOrders(web3.utils.asciiToHex(token.ticker), SIDE.SELL)
         .call(),
     ]);
     return { buy: orders[0], sell: orders[1] };
+  }
+
+  const listenToTrades = (token) => {
+    const tradeIds = new Set();
+    setTrades([]);
+    const listener = contracts.dex.events.NewTrade(
+      {
+        filter: { ticker: web3.utils.asciiToHex(token.ticker) },
+        fromBlock: 0
+      })
+      .on('data', (newTrade) => {
+        if (tradeIds.has(newTrade.returnValues.tradeId)) return;
+        tradeIds.add(newTrade.returnValues.tradeId);
+        setTrades(trades => ([...trades, newTrade.returnValues]));
+      });
+    setListener(listener);
   }
 
   useEffect(() => {
@@ -117,6 +136,7 @@ const App = ({ web3, accounts, contracts }) => {
         getBalances(accounts[0], tokens[0]),
         getOrders(tokens[0]),
       ]);
+      listenToTrades(tokens[0])
       setTokens(tokens);
       setUser({ accounts, balances, selectedToken: tokens[0] });
       setOrders(orders);
@@ -133,13 +153,14 @@ const App = ({ web3, accounts, contracts }) => {
         ),
         getOrders(user.selectedToken),
       ]);
+      listenToTrades(user.selectedToken);
       setUser(user => ({ ...user, balances }));
       setOrders(orders);
     }
     if (user.selectedToken) {
       init();
     }
-  }, [user.selectedToken]);
+  }, [user.selectedToken], () => listener.unsubscribe());
 
   if (!user.selectedToken) {
     return <div>Loading...</div>
@@ -170,6 +191,9 @@ const App = ({ web3, accounts, contracts }) => {
           </div>
           {user.selectedToken.ticker !== 'DAI' ? (
             <div className="col-sm-8">
+              <AllTrades
+                trades={trades}
+              />
               <AllOrders
                 orders={orders}
               />
