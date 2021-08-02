@@ -11,36 +11,36 @@
 
 ## Getting Started
 
-### Install dependencies:
+### 1. Install dependencies:
 
 ```sh
 yarn install
 ```
 
-### 1. Run tests:
+### 2. Run tests:
 
 ```
 yarn truffle:test
 ```
-### 2. Deployment to private blockchain:
+### 3. Deployment to private blockchain:
 
-2.1. Create private blockchain with Truffle: 
+3.1. Create private blockchain with Truffle: 
 ```sh
 yarn truffle:develop
 ```
 
-2.2 Import Truffle accounts into your favorite Wallet.
+3.2 Import Truffle accounts into your favorite Wallet.
 
 Example with MetaMask wallet: 
 
 https://metamask.zendesk.com/hc/en-us/articles/360015489331-How-to-import-an-Account
 
-2.2. Deploy contract:
+3.2. Deploy contract:
 ```sh
 yarn truffle:migrate
 ```
 
-2.3 Execute front-end:
+3.3 Execute front-end:
 ```sh
 yarn client:start
 ```
