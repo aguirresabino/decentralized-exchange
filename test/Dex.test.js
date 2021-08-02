@@ -15,6 +15,7 @@ const SIDE = {
 const seedTokenBalance = async (token, trader, dexContract) => {
     const amount = web3.utils.toWei('1000');
     await token.faucet(trader, amount);
+    // https://eips.ethereum.org/EIPS/eip-20#approve
     await token.approve(
         dexContract.address,
         amount,
